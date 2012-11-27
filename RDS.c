@@ -841,6 +841,8 @@ static int parse_rds_block_b(struct bcm2048_device *bdev, int i)
 			parse_rds_group_0(bdev, i);
 		} else if (rds_group == 2) {
 			parse_rds_group_2(bdev, i);
+		} else {
+			printf("found a %d%s group: %2.2x%2.2x %2.2x%2.2x %2.2x%2.2x\n",rds_group, rds_group_b?"B":"A", bdev->rds_info.radio_text[i+1], bdev->rds_info.radio_text[i+2], bdev->rds_info.radio_text[i+4], bdev->rds_info.radio_text[i+5], bdev->rds_info.radio_text[i+7], bdev->rds_info.radio_text[i+8]);
 		}
 	}
 
@@ -913,28 +915,54 @@ main(int argc, char *argv[])
 	char hci_res[3];
 	FILE *fp;
 	uint8_t buf;
+	unsigned long freq_arg;
+	char *endptr;
+	
+	freq_arg = strtoul(argv[1], &endptr, 10);
+	freq_arg -= BCM2048_FREQUENCY_BASE;
 	
 	buf=BCM2048_FM_ON | BCM2048_RDS_ON;
 	hci_write(BCM2048_I2C_FM_RDS_SYSTEM, 1, &buf);
+	
+	buf=BCM2048_DE_EMPHASIS_SELECT;//BCM2048_MANUAL_MUTE | BCM2048_DE_EMPHASIS_SELECT;
+	hci_write(BCM2048_I2C_FM_AUDIO_CTRL0, 1, &buf);
+	
+	buf=3;
+	hci_write(BCM2048_I2C_RDS_CTRL0, 1, &buf);
+	
+	buf=BCM2048_STEREO_MONO_AUTO_SELECT;// | BCM2048_STEREO_MONO_MANUAL_SELECT;
+	hci_write(BCM2048_I2C_FM_CTRL, 1, &buf);
+	
+	buf=lsb(freq_arg);
+	hci_write(BCM2048_I2C_FM_FREQ0, 1, &buf);
+	
+	buf=msb(freq_arg);
+	hci_write(BCM2048_I2C_FM_FREQ1, 1, &buf);
+	
+	buf=BCM2048_FM_PRE_SET_MODE;
+	hci_write(BCM2048_I2C_FM_SEARCH_TUNE_MODE, 1, &buf);
+
+	buf=BCM2048_FM_ON | BCM2048_RDS_ON;
+	hci_write(BCM2048_I2C_FM_RDS_SYSTEM, 1, &buf);
+	
+	buf=BCM2048_DAC_OUTPUT_LEFT | BCM2048_DAC_OUTPUT_RIGHT | BCM2048_AUDIO_ROUTE_DAC | BCM2048_DE_EMPHASIS_SELECT;
+	hci_write(BCM2048_I2C_FM_AUDIO_CTRL0, 1, &buf);
+
 	buf=BCM2048_RDS_FLAG_FIFO_WLINE;
 	hci_write(BCM2048_I2C_FM_RDS_MASK1, 1, &buf);
+	
 	buf=0x78;
 	hci_write(BCM2048_I2C_RDS_WLINE, 1, &buf);
 	
 
     for (;;){
 	hci_read(BCM2048_I2C_FM_RDS_FLAG0, 1, &flag_lsb);
+	//printf("flag_lsb = %x\n",flag_lsb);
 	hci_read(BCM2048_I2C_FM_RDS_FLAG1, 1, &flag_msb);
-	
+	//printf("flag_msb = %x\n",flag_msb);
 	//if (flag_lsb & BCM2048_FM_FLAG_SEARCH_TUNE_FINISHED) {
 	  if (flag_msb & BCM2048_RDS_FLAG_FIFO_WLINE) {
 		bcm2048_rds_fifo_receive(bdev);
-		/*if (bdev->rds_state) {
-			flags =	BCM2048_RDS_FLAG_FIFO_WLINE;
-			bcm2048_send_command(bdev, BCM2048_I2C_FM_RDS_MASK1,
-						flags);
-		}*/
-
 	  }
 	//}
 
